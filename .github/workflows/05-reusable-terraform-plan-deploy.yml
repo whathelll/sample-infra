@@ -34,14 +34,8 @@ jobs:
         region: ${{ fromJson(inputs.REGIONS) }}
     steps:
       - uses: actions/checkout@v4
-      - name: python print inherited secret
-        env:
-          MY_VAL: ${{ secrets.TEST_SECRET }}
-        run: |
-          import os
-          for q in (os.getenv("MY_VAL")):
-            print(q)
-        shell: python
+      - name: ls
+        run: ls -la
       - name: Terraform Planning for ${{ inputs.ENV }}
         shell: bash
         run: |  
