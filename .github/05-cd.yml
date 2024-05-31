@@ -1,0 +1,59 @@
+name: 05-cd
+run-name: ${{ github.workflow}} - ${{ github.sha }}
+on:
+  # push:
+  workflow_dispatch:
+    inputs:
+      REGIONS:
+        description: 'Prod Regions'
+        required: false
+        type: string
+        default: '["au", "us", "ca"]'
+      ARTEFACT_NAME:
+        description: 'Artefact Name'
+        required: true
+        type: string
+
+  workflow_call:
+    inputs:
+      REGIONS:
+        description: 'Prod Regions'
+        required: false
+        type: string
+        default: '["au", "us", "ca"]'
+      ARTEFACT_NAME:
+        description: 'Artefact Name'
+        required: true
+        type: string
+
+jobs:
+  deploy-dev:
+    name: Deploy Dev
+    uses: whathelll/sample-infra/.github/workflows/05-reusable-terraform-plan-deploy.yml@main
+    with:
+      ENV: Dev
+      ARTEFACT_NAME: ${{ inputs.ARTEFACT_NAME }}
+      # REGIONS: '["au"]'
+      REGIONS: '["au"]'
+    secrets: inherit
+
+  deploy-uat:
+    name: Deploy UAT
+    needs: [deploy-dev]
+    uses: whathelll/sample-infra/.github/workflows/05-reusable-terraform-plan-deploy.yml@main
+    with:
+      ENV: UAT
+      ARTEFACT_NAME: ${{ inputs.ARTEFACT_NAME }}
+      # REGIONS: '["au", "us"]'
+      REGIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.REGIONS || '["au", "us"]' }} 
+    secrets: inherit
+
+  # Needs this otherwise Error: The workflow must contain at least one job with no dependencies.
+  start:
+    name: Do Nothing
+    runs-on: ubuntu-latest
+    needs: [deploy-uat]
+    if: false
+    steps:
+      - name: Do Nothing
+        run: echo "Doing Nothing"

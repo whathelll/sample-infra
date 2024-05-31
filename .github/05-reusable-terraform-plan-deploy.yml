@@ -1,0 +1,89 @@
+name: 05-reusable-terraform-plan-deploy
+on:
+  workflow_call:
+    inputs:
+      ENV:  # environment
+        description: 'environment'
+        required: true
+        type: string
+        default: 'Dev'
+      ARTEFACT_NAME:  # ARTEFACT_NAME
+        description: 'ARTEFACT_NAME'
+        required: true
+        type: string
+        default: ''
+      REGIONS: 
+        description: 'Regions'
+        required: false
+        type: string
+        default: '["au"]'
+
+jobs:
+  restart-point:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Do Nothing
+        run: echo "Doing Nothing"
+
+  plan:
+    name: Plan ${{ inputs.ENV }} ${{ matrix.region }}
+    needs: [restart-point]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: ${{ fromJson(inputs.REGIONS) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: python print inherited secret
+        env:
+          MY_VAL: ${{ secrets.TEST_SECRET }}
+        run: |
+          import os
+          for q in (os.getenv("MY_VAL")):
+            print(q)
+        shell: python
+      - name: Terraform Planning for ${{ inputs.ENV }}
+        shell: bash
+        run: |  
+          echo "Git Hash is $(git rev-parse --short HEAD)"
+          PLAN="this is the plan for deploying ${{ inputs.ARTEFACT_NAME }} to ${{ inputs.ENV }} with RunID: ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}"
+          echo $PLAN
+          echo $PLAN >> ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}_${{ inputs.ENV }}.plan
+          # if [ "${{ matrix.region }}" == "us" ]; then
+          #   echo "Exiting with error as a test due to region == us"
+          #   exit 1
+          # fi
+
+      - name: Upload plan for ${{ inputs.ENV }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}_${{ inputs.ENV }}.plan
+          path: ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}_${{ inputs.ENV }}.plan
+          retention-days: 1
+
+  plan-review:
+    runs-on: ubuntu-latest
+    needs: [plan]
+    environment: 
+      name: ${{ inputs.ENV }}
+    steps:
+      - name: Do Nothing
+        run: echo "Doing Nothing"
+
+  apply:
+    name: Apply ${{ inputs.ENV }} ${{ matrix.region }}
+    runs-on: ubuntu-latest
+    needs: [plan-review]
+    strategy:
+      matrix:
+        region: ${{ fromJson(inputs.REGIONS) }}
+    steps:
+      # - uses: actions/checkout@v4
+      - name: Download plan for ${{ inputs.ENV }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}_${{ inputs.ENV }}.plan
+      - name: Deploy to ${{ inputs.ENV }}
+        run: |
+          echo "Deploying ${{ inputs.ARTEFACT_NAME }} to ${{ inputs.ENV }}"
+          cat ${{ matrix.region }}_${{github.run_id}}_${{ github.run_attempt }}_${{ inputs.ENV }}.plan
